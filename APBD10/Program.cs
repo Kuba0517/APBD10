@@ -1,6 +1,9 @@
 using APBD10.Contexts;
+using APBD10.DTOs;
 using APBD10.Exceptions;
 using APBD10.Services;
+using APBD10.Validators;
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,6 +13,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddScoped<IAccountService, AccountService>();
+builder.Services.AddScoped<IProductService, ProductService>();
+builder.Services.AddValidatorsFromAssemblyContaining<CreateProductValidators>();
 builder.Services.AddDbContext<DatabaseContext>(opt =>
 {
     opt.UseSqlServer(builder.Configuration.GetConnectionString("Default"));
@@ -36,6 +41,19 @@ app.MapGet("api/accounts/{id:int}", async (int id, IAccountService service) =>
     {
         return Results.NotFound(e.Message);
     }
+});
+
+app.MapPost("api/products", async (CreateProductDTO createProductDto,
+    IProductService service,
+    IValidator<CreateProductDTO> validator) =>
+{
+    var validationResult = await validator.ValidateAsync(createProductDto);
+    if (!validationResult.IsValid)
+    {
+        return Results.ValidationProblem(validationResult.ToDictionary());
+    }
+
+    return await service.CreateProduct(createProductDto) ? Results.Created() : Results.NotFound();
 });
 
 app.Run();
